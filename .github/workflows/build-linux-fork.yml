@@ -1,1 +1,75 @@
+name: Build Patched Yao
 
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: yaoapp/yao-build:1.0.0
+    steps:
+      - name: Clone fork + upstream deps
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          export PATH=$PATH:/github/home/go/bin
+          mkdir -p /app
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /app/yao
+          git -C /app/yao checkout "${GITHUB_SHA}"
+
+          git clone https://github.com/yaoapp/kun.git /app/kun
+          git clone https://github.com/yaoapp/xun.git /app/xun
+          git clone https://github.com/yaoapp/gou.git /app/gou
+          git clone https://github.com/yaoapp/v8go.git /app/v8go
+          git clone https://github.com/yaoapp/cui.git /app/cui-v1.0
+          git clone https://github.com/yaoapp/yao-init.git /app/yao-init
+
+          find /app/v8go -name "libv8*.zip" | while read file; do
+            dir=$(dirname "$file")
+            unzip -o -d "$dir" "$file"
+            rm -rf "$dir/__MACOSX"
+          done
+
+      - name: Build
+        run: |
+          export PATH=$PATH:/github/home/go/bin
+          cd /app/yao
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+            sed -i "s/const VERSION = \".*\"/const VERSION = \"${TAG_VERSION}\"/g" share/const.go
+            grep 'const VERSION' share/const.go
+          fi
+          make tools && make artifacts-linux
+          mkdir -p /data
+          mv /app/yao/dist/release/* /data/
+          ls -l /data
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yao-linux
+          path: /data/*
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: yao-linux
+          path: artifacts
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" --draft --title "$TAG" || true
+          chmod +x artifacts/*
+          gh release upload "$TAG" artifacts/* --clobber
+          gh release edit "$TAG" --draft=false

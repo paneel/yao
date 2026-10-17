@@ -57,7 +57,7 @@ func (c *LocalClient) Exec(ctx context.Context, req *pb.ExecRequest, _ ...grpc.C
 
 	timeout := time.Duration(req.TimeoutMs) * time.Millisecond
 	if timeout <= 0 {
-		timeout = 120 * time.Minute
+		timeout = 5 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -116,7 +116,7 @@ func (c *LocalClient) ExecStream(ctx context.Context, req *pb.ExecRequest, _ ...
 
 	timeout := time.Duration(req.TimeoutMs) * time.Millisecond
 	if timeout <= 0 {
-		timeout = 120 * time.Minute
+		timeout = 5 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 

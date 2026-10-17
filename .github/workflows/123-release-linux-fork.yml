@@ -40,11 +40,21 @@ jobs:
         run: |
           export PATH=$PATH:/github/home/go/bin
           cd /app/yao
+
+          # Patch: raise hostexec 5m stream kill to 120m
+          sed -i 's/timeout = 5 \* time.Minute/timeout = 120 * time.Minute/g' tai/hostexec/local.go
+          COUNT=$(grep -c 'timeout = 120 \* time.Minute' tai/hostexec/local.go || true)
+          if [ "$COUNT" -ne 2 ]; then
+            echo "::error::hostexec patch did not apply (found $COUNT, expected 2)"
+            exit 1
+          fi
+
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             TAG_VERSION="${GITHUB_REF#refs/tags/v}"
             sed -i "s/const VERSION = \".*\"/const VERSION = \"${TAG_VERSION}\"/g" share/const.go
             grep 'const VERSION' share/const.go
           fi
+
           make tools && make artifacts-linux
           mkdir -p /data
           mv /app/yao/dist/release/* /data/

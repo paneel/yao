@@ -41,11 +41,18 @@ jobs:
           export PATH=$PATH:/github/home/go/bin
           cd /app/yao
 
-          # Patch: raise hostexec 5m stream kill to 120m
+          # Patch 1: raise hostexec 5m stream kill to 120m
           sed -i 's/timeout = 5 \* time.Minute/timeout = 120 * time.Minute/g' tai/hostexec/local.go
           COUNT=$(grep -c 'timeout = 120 \* time.Minute' tai/hostexec/local.go || true)
           if [ "$COUNT" -ne 2 ]; then
             echo "::error::hostexec patch did not apply (found $COUNT, expected 2)"
+            exit 1
+          fi
+
+          # Patch 2: API key tokens can trigger robots (webhooks)
+          sed -i 's|const apiKeyTokenScope = "experts:all file:all chat:models:read:all tasks:all llm:all"|const apiKeyTokenScope = "experts:all file:all chat:models:read:all tasks:all llm:all agent:robots:trigger:own agent:robots:trigger:team agent:robots:trigger:all"|' openapi/oauth/apikey.go
+          if ! grep -q 'agent:robots:trigger:own agent:robots:trigger:team agent:robots:trigger:all' openapi/oauth/apikey.go; then
+            echo "::error::api key scope patch did not apply"
             exit 1
           fi
 
